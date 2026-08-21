@@ -3,7 +3,12 @@ import { buildSourceRegistry, DEFAULT_BASE_PATH } from '../config.js'
 import { parseCallback } from '../server/callback.js'
 import { initiatePayment } from '../server/initiate.js'
 import { applyPaymentResult, readPayment, type OrderContext } from '../server/orders.js'
-import type { EcommpayPluginConfig } from '../types.js'
+import type {
+  EcommpayAccessArgs,
+  EcommpayAccessCheck,
+  EcommpayPluginConfig,
+  OrderRef,
+} from '../types.js'
 
 const json = (data: unknown, status = 200): Response =>
   new Response(JSON.stringify(data), {
@@ -32,6 +37,20 @@ const isKnown = (config: EcommpayPluginConfig, collection: unknown): collection 
   typeof collection === 'string' && config.sources.some((s) => s.collection === collection)
 
 /**
+ * Default gate for `initiate` and `status`: require an authenticated Payload
+ * user. Deliberately restrictive — these routes mint signed payment params and
+ * expose payment state, so an open default would be an order-enumeration hole.
+ */
+const requireAuthenticatedUser: EcommpayAccessCheck = ({ req }) => Boolean(req.user)
+
+const isAllowed = async (
+  check: EcommpayAccessCheck | undefined,
+  args: EcommpayAccessArgs,
+): Promise<boolean> => Boolean(await (check ?? requireAuthenticatedUser)(args))
+
+const forbidden = (): Response => json({ error: 'Forbidden.' }, 403)
+
+/**
  * Build the three EcommPay endpoints, mounted under `${basePath}` (default
  * `/payments/ecommpay`) → available at `/api/payments/ecommpay/...`.
  */
@@ -48,12 +67,13 @@ export const createEcommpayEndpoints = (config: EcommpayPluginConfig): Endpoint[
         if (!isKnown(config, collection) || orderId == null) {
           return json({ error: 'collection and orderId are required.' }, 400)
         }
+        const ref: OrderRef = { collection, orderId: String(orderId) }
+        // Authorise before touching the order: `initiatePayment` both reads the
+        // order and writes a pending payment id, so an unauthorised caller must
+        // not reach it.
+        if (!(await isAllowed(config.access?.initiate, { req, ref }))) return forbidden()
         try {
-          const params = await initiatePayment(
-            req.payload,
-            { collection, orderId: String(orderId) },
-            config,
-          )
+          const params = await initiatePayment(req.payload, ref, config)
           return json(params)
         } catch (error) {
           return json(
@@ -86,10 +106,9 @@ export const createEcommpayEndpoints = (config: EcommpayPluginConfig): Endpoint[
         if (!isKnown(config, collection) || !orderId) {
           return json({ error: 'collection and orderId are required.' }, 400)
         }
-        const { status, transactionId } = await readPayment(ctxFor(config, req), {
-          collection,
-          orderId,
-        })
+        const ref: OrderRef = { collection, orderId }
+        if (!(await isAllowed(config.access?.status, { req, ref }))) return forbidden()
+        const { status, transactionId } = await readPayment(ctxFor(config, req), ref)
         return json({ status, transactionId })
       },
     },

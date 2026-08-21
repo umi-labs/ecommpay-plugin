@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 
 export type PaymentStatus = 'pending' | 'completed' | 'failed'
 
@@ -27,6 +27,14 @@ export type PaymentSource = {
   resolveAmount?: (order: Record<string, unknown>) => number
 }
 
+/** Arguments handed to an endpoint access check. */
+export type EcommpayAccessArgs = {
+  req: PayloadRequest
+  ref: OrderRef
+}
+
+export type EcommpayAccessCheck = (args: EcommpayAccessArgs) => boolean | Promise<boolean>
+
 export type EcommpayPluginConfig = {
   /** Collections that can be paid for. */
   sources: PaymentSource[]
@@ -49,6 +57,23 @@ export type EcommpayPluginConfig = {
   basePath?: string
   /** Register the payment field but skip endpoints. */
   disabled?: boolean
+  /**
+   * Authorisation for the two customer-facing endpoints. Both default to
+   * requiring an authenticated Payload user: without a gate here, anyone could
+   * mint signed payment params for an arbitrary order id (and flip that order
+   * to `pending`), or read another customer's payment status.
+   *
+   * The `callback` route is deliberately not listed — it must stay reachable by
+   * EcommPay, and is gated by signature verification instead.
+   *
+   * Return `true` to allow. Override when payments are initiated by guests, and
+   * scope the check to something the caller has proven they own (a cart token,
+   * a signed session, an order-specific nonce) rather than allowing all.
+   */
+  access?: {
+    initiate?: EcommpayAccessCheck
+    status?: EcommpayAccessCheck
+  }
 }
 
 export type ResolvedCredentials = {

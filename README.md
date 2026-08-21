@@ -119,7 +119,26 @@ ecommpayPlugin({
   addPaymentField?: boolean          // inject the payment group, default true
   basePath?: string                  // endpoint base, default '/payments/ecommpay'
   disabled?: boolean                 // register the field but skip endpoints
+  access?: {                         // endpoint authorisation, see below
+    initiate?: (args: { req, ref }) => boolean | Promise<boolean>
+    status?:   (args: { req, ref }) => boolean | Promise<boolean>
+  }
 })
+```
+
+**`access`** — gates the two customer-facing endpoints. **Both default to requiring an authenticated Payload user.** `callback` is not listed: it must stay reachable by EcommPay and is gated by signature verification instead.
+
+Override when payments are initiated by guests — but scope the check to something the caller has proven they own, rather than opening the route up:
+
+```ts
+access: {
+  // Good: the caller must present a token tied to this specific order.
+  initiate: async ({ req, ref }) => {
+    const token = req.headers.get('x-cart-token')
+    return Boolean(token) && (await cartTokenMatchesOrder(token, ref.orderId))
+  },
+  // Bad: `() => true` restores the enumeration hole described below.
+}
 ```
 
 **`PaymentSource`** — `{ collection, prefix, amountField?, resolveAmount? }`. `prefix` must be unique and dash-free; `amountField` (default `amount`) or `resolveAmount` gives the payable amount in minor units.
@@ -128,7 +147,8 @@ ecommpayPlugin({
 
 - Callbacks are only trusted after the EcommPay SDK verifies the signature against your secret key. Keep `ECOM_SECRET_KEY` server-side only.
 - `applyPaymentResult` is idempotent, so EcommPay's at-least-once callback delivery won't double-process an order.
-- Order writes use `overrideAccess: true` deliberately — the payment flow is a trusted server context, not an end-user request.
+- Order writes use `overrideAccess: true` deliberately — the payment flow is a trusted server context, not an end-user request. Because those reads and writes bypass collection access control, the endpoint-level `access` gate is what protects them.
+- `initiate` and `status` require an authenticated user by default. This matters: `initiate` returns **signed** widget params for whatever `orderId` it is given *and* flips that order to `pending`, while `status` discloses payment status and transaction id. An open gate on either lets an anonymous caller enumerate orders by id. If you widen `access`, tie the check to proof of ownership of that specific order.
 
 ## Exports
 

@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import {
   applyPaymentResult,
   buildSourceRegistry,
+  createEcommpayEndpoints,
   initiatePayment,
   parseCallback,
   readPayment,
@@ -102,5 +103,78 @@ describe('payment flow', () => {
     await expect(
       initiatePayment(payload, { collection: 'orders', orderId }, ecommpayConfig),
     ).rejects.toThrow(/not pending/)
+  })
+})
+
+
+describe('endpoint authorisation', () => {
+  let orderId: string
+
+  const endpoint = (method: string, path: string) => {
+    const found = createEcommpayEndpoints(ecommpayConfig).find(
+      (e) => e.method === method && e.path === path,
+    )
+    if (!found) throw new Error(`no ${method} ${path}`)
+    return found
+  }
+
+  // Minimal PayloadRequest stand-in; `user` is what the access gate reads.
+  const req = (over: Record<string, unknown> = {}) =>
+    ({ payload, user: null, ...over }) as never
+
+  beforeAll(async () => {
+    const order = await payload.create({
+      collection: 'orders',
+      data: { reference: 'AUTH-1', amount: 4200 },
+    })
+    orderId = String(order.id)
+  })
+
+  test('initiate rejects an unauthenticated caller with 403', async () => {
+    const res = await endpoint('post', '/payments/ecommpay/initiate').handler(
+      req({ json: async () => ({ collection: 'orders', orderId }) }),
+    )
+    expect(res.status).toBe(403)
+  })
+
+  test('initiate does not mutate the order when it is rejected', async () => {
+    await endpoint('post', '/payments/ecommpay/initiate').handler(
+      req({ json: async () => ({ collection: 'orders', orderId }) }),
+    )
+    const order = await payload.findByID({ collection: 'orders', id: orderId, depth: 0 })
+    expect((order as { payment?: { transactionId?: string } }).payment?.transactionId).toBeFalsy()
+  })
+
+  test('initiate allows an authenticated caller', async () => {
+    const res = await endpoint('post', '/payments/ecommpay/initiate').handler(
+      req({ user: { id: 'u1' }, json: async () => ({ collection: 'orders', orderId }) }),
+    )
+    expect(res.status).toBe(200)
+    expect((await res.json()).payment_amount).toBe(4200)
+  })
+
+  test('status rejects an unauthenticated caller with 403', async () => {
+    const res = await endpoint('get', '/payments/ecommpay/status').handler(
+      req({ url: `/api/payments/ecommpay/status?collection=orders&orderId=${orderId}` }),
+    )
+    expect(res.status).toBe(403)
+  })
+
+  test('a custom access function is honoured', async () => {
+    const cfg = { ...ecommpayConfig, access: { status: () => true } }
+    const ep = createEcommpayEndpoints(cfg).find(
+      (e) => e.method === 'get' && e.path === '/payments/ecommpay/status',
+    )!
+    const res = await ep.handler(
+      req({ url: `/api/payments/ecommpay/status?collection=orders&orderId=${orderId}` }),
+    )
+    expect(res.status).toBe(200)
+  })
+
+  test('callback stays public (signature is the gate)', async () => {
+    const res = await endpoint('post', '/payments/ecommpay/callback').handler(
+      req({ json: async () => ({ project_id: 112, signature: 'bad' }) }),
+    )
+    expect(res.status).toBe(400)
   })
 })

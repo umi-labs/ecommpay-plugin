@@ -7,6 +7,8 @@ import type { EcommpayPluginConfig } from './types.js'
 // Public API
 // ---------------------------------------------------------------------------
 export type {
+  EcommpayAccessArgs,
+  EcommpayAccessCheck,
   EcommpayPluginConfig,
   PaymentSource,
   OrderRef,
