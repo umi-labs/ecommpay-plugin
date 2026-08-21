@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "rootDir": "./",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "emitDeclarationOnly": true,
+    "target": "ES2022",
+    "composite": true,
+    "paths": {
+      "@foundrykit/ecommpay-plugin/client": ["./src/exports/client.ts"],
+      "@foundrykit/ecommpay-plugin/rsc": ["./src/exports/rsc.ts"],
+      "@foundrykit/ecommpay-plugin": ["./src/index.ts"]
+    },
+    "plugins": [{ "name": "next" }]
+  },
+  "include": [
+    "./src/**/*.ts",
+    "./src/**/*.tsx",
+    "./dev/next-env.d.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
+}

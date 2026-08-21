@@ -1,0 +1,114 @@
+{
+  "name": "@foundrykit/ecommpay-plugin",
+  "version": "0.1.0",
+  "description": "EcommPay payment adapter for Payload CMS 3 — collection-agnostic order payments with a hosted-payment-page widget, SDK-accurate HMAC signing and verified callbacks.",
+  "license": "MIT",
+  "type": "module",
+  "author": {
+    "name": "Isaac SJ",
+    "email": "isaac@umidigital.co.uk"
+  },
+  "keywords": [
+    "payload",
+    "payloadcms",
+    "plugin",
+    "payments",
+    "ecommpay",
+    "checkout"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./client": {
+      "import": "./dist/exports/client.js",
+      "types": "./dist/exports/client.d.ts",
+      "default": "./dist/exports/client.js"
+    },
+    "./rsc": {
+      "import": "./dist/exports/rsc.js",
+      "types": "./dist/exports/rsc.d.ts",
+      "default": "./dist/exports/rsc.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "pnpm copyfiles && pnpm build:types && pnpm build:swc",
+    "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths --ignore \"**/*.test.ts\" --ignore \"**/*.test.tsx\" --ignore \"**/*.d.ts\"",
+    "build:types": "tsc --outDir dist --rootDir ./src",
+    "clean": "rimraf {dist,*.tsbuildinfo}",
+    "copyfiles": "copyfiles -u 1 \"src/**/*.{html,css,scss,ttf,woff,woff2,eot,svg,jpg,png,json}\" dist/",
+    "dev": "next dev dev",
+    "dev:generate-importmap": "pnpm dev:payload generate:importmap",
+    "dev:generate-types": "pnpm dev:payload generate:types",
+    "dev:payload": "cross-env PAYLOAD_CONFIG_PATH=./dev/payload.config.ts payload",
+    "generate:importmap": "pnpm dev:generate-importmap",
+    "generate:types": "pnpm dev:generate-types",
+    "lint": "eslint",
+    "lint:fix": "eslint ./src --fix",
+    "prepublishOnly": "pnpm build && node scripts/verify-pack.mjs",
+    "verify:pack": "node scripts/verify-pack.mjs",
+    "release": "release-it",
+    "test": "pnpm test:unit && pnpm test:int && pnpm test:e2e",
+    "test:unit": "vitest run src",
+    "test:int": "vitest run dev/int.spec.ts",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "ecommpay": "^0.1.7"
+  },
+  "devDependencies": {
+    "@payloadcms/db-sqlite": "3.84.1",
+    "@payloadcms/next": "3.84.1",
+    "@payloadcms/richtext-lexical": "3.84.1",
+    "@payloadcms/ui": "3.84.1",
+    "@playwright/test": "1.58.2",
+    "@swc-node/register": "1.10.9",
+    "@swc/cli": "0.6.0",
+    "@types/node": "22.19.9",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "copyfiles": "2.4.1",
+    "cross-env": "^7.0.3",
+    "graphql": "^16.8.1",
+    "next": "16.2.6",
+    "payload": "3.84.1",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "rimraf": "3.0.2",
+    "sharp": "0.34.2",
+    "typescript": "5.7.3",
+    "vite-tsconfig-paths": "6.0.5",
+    "vitest": "4.0.18"
+  },
+  "peerDependencies": {
+    "payload": "^3.37.0",
+    "react": "^19"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": "^18.20.2 || >=20.9.0",
+    "pnpm": "^9 || ^10"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp",
+      "esbuild",
+      "unrs-resolver"
+    ]
+  },
+  "registry": "https://registry.npmjs.org/"
+}
